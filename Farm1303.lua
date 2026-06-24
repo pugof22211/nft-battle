@@ -1,4 +1,4 @@
-﻿-- FARM FROM 1303
+-- FARM FROM 1303
 -- Канал: https://t.me/scriptNftBattle
 -- Автор: @cozy_hous1303
 
@@ -15,7 +15,7 @@ for _, _n in ipairs(whitelist) do
     if _n == LocalPlayer.Name then _allowed = true break end
 end
 if not _allowed then
-    LocalPlayer:Kick("пошел нахуй")
+    pcall(function() LocalPlayer:Kick("Доступ запрещен. Скрипт не куплен.") end)
     return
 end
 -- ───────────────────────────────────────────────────────────
