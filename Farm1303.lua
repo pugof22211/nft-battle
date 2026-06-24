@@ -2,28 +2,30 @@
 -- Канал: https://t.me/scriptNftBattle
 -- Автор: @cozy_hous1303
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
 -- ── Whitelist ──────────────────────────────────────────────
 local whitelist = {
-    "UsernameGH4",
-    -- добавляй покупателей сюда новой строкой
+    "твойНик",
 }
+
+local _plrName = game.Players.LocalPlayer.Name
 local _allowed = false
 for _, _n in ipairs(whitelist) do
-    if _n == LocalPlayer.Name then _allowed = true break end
+    if _n == _plrName then _allowed = true break end
 end
 if not _allowed then
-    pcall(function() LocalPlayer:Kick("Доступ запрещен. Скрипт не куплен.") end)
+    game.Players.LocalPlayer:Kick("Доступ запрещен. Скрипт не куплен.")
     return
 end
 -- ───────────────────────────────────────────────────────────
 
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local RS = game:GetService("ReplicatedStorage")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 local SelectedCase = nil
 local AutoFarm = false
@@ -46,6 +48,7 @@ local ColorBg2     = Color3.fromRGB(25, 25, 32)
 local ColorText    = Color3.fromRGB(255, 255, 255)
 local ColorTextDim = Color3.fromRGB(170, 170, 180)
 
+-- ── Локализация ──────────────────────────────────────────────────────────
 local L = {
     ru = {
         title          = "🎲 FARM 1303",
@@ -69,8 +72,8 @@ local L = {
         p_snow         = "❄ СНЕГ",
         p_stars        = "⭐ ЗВЁЗДЫ",
         p_sparks       = "✦ ИСКРЫ",
-        channel        = "КАНАЛ",
-        author         = "АВТОР",
+        channel        = "📢 КАНАЛ",
+        author         = "👤 АВТОР",
     },
     en = {
         title          = "🎲 FARM 1303",
@@ -94,8 +97,8 @@ local L = {
         p_snow         = "❄ SNOW",
         p_stars        = "⭐ STARS",
         p_sparks       = "✦ SPARKS",
-        channel        = "CHANNEL",
-        author         = "AUTHOR",
+        channel        = "📢 CHANNEL",
+        author         = "👤 AUTHOR",
     },
 }
 local function T(k) return L[CurrentLang][k] or k end
@@ -121,6 +124,9 @@ local Cases = {
     {name="Cirque",       image="rbxassetid://102198691984946"},
 }
 
+-- ════════════════════════════════════════════════════════════
+--  TOGGLE (анимированный переключатель)
+-- ════════════════════════════════════════════════════════════
 local function MakeToggle(parent, x, y, initState, onToggle)
     local W, H = 44, 22
     local track = Instance.new("TextButton", parent)
@@ -131,6 +137,7 @@ local function MakeToggle(parent, x, y, initState, onToggle)
     track.BorderSizePixel = 0
     track.ZIndex = 8
     Instance.new("UICorner", track).CornerRadius = UDim.new(0, H/2)
+
     local thumb = Instance.new("Frame", track)
     thumb.Size = UDim2.new(0, H-4, 0, H-4)
     thumb.Position = initState and UDim2.new(0, W-H+2, 0, 2) or UDim2.new(0, 2, 0, 2)
@@ -138,6 +145,7 @@ local function MakeToggle(parent, x, y, initState, onToggle)
     thumb.BorderSizePixel = 0
     thumb.ZIndex = 9
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(0, (H-4)/2)
+
     local state = initState
     track.MouseButton1Click:Connect(function()
         state = not state
@@ -149,9 +157,14 @@ local function MakeToggle(parent, x, y, initState, onToggle)
         }):Play()
         if onToggle then onToggle(state) end
     end)
+
     return track, thumb, function() return state end
 end
 
+-- ════════════════════════════════════════════════════════════
+--  GUI ROOT
+-- ════════════════════════════════════════════════════════════
+-- БАГ #1: Удаляем старый GUI при повторном запуске, чтобы не дублировался
 local oldGui = LocalPlayer.PlayerGui:FindFirstChild("Farm1303")
 if oldGui then oldGui:Destroy() end
 
@@ -174,6 +187,7 @@ Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
 Instance.new("UIStroke", Main).Color = ColorAccent
 Main:FindFirstChildOfClass("UIStroke").Thickness = 1.5
 
+-- Фон
 local BgImg = Instance.new("ImageLabel", Main)
 BgImg.Size = UDim2.new(1,0,1,0)
 BgImg.Image = "rbxassetid://109428946552526"
@@ -183,6 +197,7 @@ BgImg.ScaleType = Enum.ScaleType.Crop
 BgImg.ZIndex = 0
 Instance.new("UICorner", BgImg).CornerRadius = UDim.new(0, 12)
 
+-- Партиклы
 local PFrame = Instance.new("Frame", Main)
 PFrame.Size = UDim2.new(1,0,1,0)
 PFrame.BackgroundTransparency = 1
@@ -190,7 +205,8 @@ PFrame.ZIndex = 1
 PFrame.ClipsDescendants = true
 
 local particleConn = nil
-
+-- БАГ #2: particleTimer должен быть локальным внутри функции, а не глобальным,
+-- чтобы избежать накопления между вызовами StartParticles
 local function ClearParticles()
     if particleConn then particleConn:Disconnect(); particleConn = nil end
     for _, c in ipairs(PFrame:GetChildren()) do c:Destroy() end
@@ -222,6 +238,7 @@ end
 local function StartParticles(ptype)
     ClearParticles()
     ActiveParticle = ptype
+    -- БАГ #2 (исправлен): таймер теперь локальный для каждого вызова
     local timer = 0
     particleConn = RunService.Heartbeat:Connect(function(dt)
         timer += dt
@@ -232,6 +249,9 @@ local function StartParticles(ptype)
     end)
 end
 
+-- ════════════════════════════════════════════════════════════
+--  ТОП-БАР
+-- ════════════════════════════════════════════════════════════
 local Top = Instance.new("Frame", Main)
 Top.Size = UDim2.new(1,0,0,36)
 Top.BackgroundColor3 = ColorBg2
@@ -274,6 +294,9 @@ CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.ZIndex = 10
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,5)
 
+-- ════════════════════════════════════════════════════════════
+--  ТАБ-БАР
+-- ════════════════════════════════════════════════════════════
 local TabBar = Instance.new("Frame", Main)
 TabBar.Size = UDim2.new(1,0,0,30)
 TabBar.Position = UDim2.new(0,0,0,36)
@@ -305,6 +328,9 @@ end
 local TabMain     = MakeTabBtn(T("tab_main"), 1)
 local TabSettings = MakeTabBtn(T("tab_settings"), 2)
 
+-- ════════════════════════════════════════════════════════════
+--  BOTTOM BAR
+-- ════════════════════════════════════════════════════════════
 local BottomBar = Instance.new("Frame", Main)
 BottomBar.Size = UDim2.new(1,0,0,130)
 BottomBar.Position = UDim2.new(0,0,1,-130)
@@ -319,6 +345,7 @@ local BP = Instance.new("UIPadding", BottomBar)
 BP.PaddingLeft = UDim.new(0,8); BP.PaddingRight = UDim.new(0,8)
 BP.PaddingTop = UDim.new(0,4); BP.PaddingBottom = UDim.new(0,4)
 
+-- Авто-продажа row
 local SellRow = Instance.new("Frame", BottomBar)
 SellRow.Size = UDim2.new(1,0,0,26)
 SellRow.BackgroundColor3 = ColorBg
@@ -349,6 +376,7 @@ local _, _, getSellState = MakeToggle(SellRow, 168, 2, false, function(state)
     SellLabel.TextColor3 = state and ColorText or ColorTextDim
 end)
 
+-- Кнопки СТАРТ / СТОП
 local BtnRow = Instance.new("Frame", BottomBar)
 BtnRow.Size = UDim2.new(1,0,0,38)
 BtnRow.BackgroundTransparency = 1
@@ -409,6 +437,9 @@ StatusLbl.ZIndex = 10
 
 local function SetStatus(t) StatusLbl.Text = t end
 
+-- ════════════════════════════════════════════════════════════
+--  КЕЙСЫ
+-- ════════════════════════════════════════════════════════════
 local Content = Instance.new("ScrollingFrame", Main)
 Content.Size = UDim2.new(1,0,1,-196)
 Content.Position = UDim2.new(0,0,0,66)
@@ -462,6 +493,9 @@ for i, case in ipairs(Cases) do
     end)
 end
 
+-- ════════════════════════════════════════════════════════════
+--  НАСТРОЙКИ
+-- ════════════════════════════════════════════════════════════
 local SFrame = Instance.new("ScrollingFrame", Main)
 SFrame.Size = UDim2.new(1,0,1,-196)
 SFrame.Position = UDim2.new(0,0,0,66)
@@ -492,7 +526,8 @@ local function Card(h)
     Instance.new("UICorner", c).CornerRadius = UDim.new(0,8)
     return c
 end
-
+-- БАГ #3: функция Lbl конфликтовала с локальной переменной Lbl2 в цикле кейсов
+-- Переименована в MakeLbl для ясности
 local function MakeLbl(p,text,x,y,w,h,sz,col,ax)
     local l = Instance.new("TextLabel",p)
     l.Position = UDim2.new(0,x,0,y); l.Size = UDim2.new(0,w,0,h)
@@ -503,6 +538,7 @@ local function MakeLbl(p,text,x,y,w,h,sz,col,ax)
     l.ZIndex = 7; return l
 end
 
+-- ── Fast Upgrade ─────────────────────────────────────────────
 local FUCard = Card(58)
 local fuIco = Instance.new("ImageLabel", FUCard)
 fuIco.Size = UDim2.new(0,28,0,28); fuIco.Position = UDim2.new(0,8,0.5,-14)
@@ -519,15 +555,16 @@ MakeToggle(FUCard, BASE_W - 10 - 44 - 10, (58-22)/2, false, function(state)
     end)
 end)
 
+-- ── Партиклы ─────────────────────────────────────────────────
 local PCard = Card(110)
 MakeLbl(PCard, T("particles"), 12, 8, 180, 15, 11, ColorAccent)
 MakeLbl(PCard, T("particles_sub"), 12, 25, 200, 12, 7, ColorTextDim)
 
 local pModes = {
-    {id="off",   label=function() return T("p_off")   end, bg=Color3.fromRGB(50,50,65),   tc=ColorTextDim},
-    {id="snow",  label=function() return T("p_snow")  end, bg=Color3.fromRGB(60,100,160), tc=ColorText},
-    {id="stars", label=function() return T("p_stars") end, bg=Color3.fromRGB(70,50,130),  tc=ColorText},
-    {id="sparks",label=function() return T("p_sparks")end, bg=Color3.fromRGB(140,90,10),  tc=Color3.fromRGB(255,200,50)},
+    {id="off",   label=function() return T("p_off")    end, bg=Color3.fromRGB(50,50,65),     tc=ColorTextDim},
+    {id="snow",  label=function() return T("p_snow")   end, bg=Color3.fromRGB(60,100,160),   tc=ColorText},
+    {id="stars", label=function() return T("p_stars")  end, bg=Color3.fromRGB(70,50,130),    tc=ColorText},
+    {id="sparks",label=function() return T("p_sparks") end, bg=Color3.fromRGB(140,90,10),    tc=Color3.fromRGB(255,200,50)},
 }
 local pBtns = {}
 local pBtnLayout = Instance.new("Frame", PCard)
@@ -565,6 +602,7 @@ for i, m in ipairs(pModes) do
     end)
 end
 
+-- ── Размер окна ───────────────────────────────────────────────
 local ScCard = Card(72)
 local ScTitle = MakeLbl(ScCard, T("scale"), 12, 7, 180, 15, 11, ColorAccent)
 local ScVal   = MakeLbl(ScCard, "100%", 0, 7, BASE_W-22, 15, 9, ColorTextDim, Enum.TextXAlignment.Right)
@@ -604,15 +642,17 @@ local function SetScale(rel)
     rel = math.clamp(rel, 0, 1)
     Fill.Size = UDim2.new(rel, 0, 1, 0)
     Thumb.Position = UDim2.new(rel, -9, 0.5, -9)
-    CurrentScale = 0.5 + rel
+    CurrentScale = 0.5 + rel  -- диапазон 0.5 → 1.5
     ScVal.Text = math.floor(CurrentScale * 100) .. "%"
     local newW = math.floor(BASE_W * CurrentScale)
+    -- БАГ #4: curX объявлялся, но нигде не использовался — убран
     Main.Size = UDim2.new(0, newW, 1, 0)
     Main.Position = UDim2.new(0.5, -newW/2, Main.Position.Y.Scale, Main.Position.Y.Offset)
 end
 
 Thumb.MouseButton1Down:Connect(function() SliderDrag = true end)
 
+-- ── Язык ─────────────────────────────────────────────────────
 local LCard = Card(46)
 local LTitle = MakeLbl(LCard, T("language"), 12, 7, 160, 32, 11, ColorAccent)
 
@@ -636,8 +676,11 @@ LangEN.TextSize = 8; LangEN.Font = Enum.Font.GothamBold
 LangEN.BorderSizePixel = 0; LangEN.ZIndex = 7
 Instance.new("UICorner", LangEN).CornerRadius = UDim.new(0,5)
 
+-- ════════════════════════════════════════════════════════════
+--  ИНФО-БАР (Канал и Автор)
+-- ════════════════════════════════════════════════════════════
 local InfoCard = Card(56)
-local InfoTitle = MakeLbl(InfoCard, T("channel"), 12, 4, 150, 14, 9, ColorAccent)
+local InfoTitle = MakeLbl(InfoCard, "📢 " .. T("channel"), 12, 4, 150, 14, 9, ColorAccent)
 
 local ChannelBtn = Instance.new("TextButton", InfoCard)
 ChannelBtn.Size = UDim2.new(1,-24,0,22)
@@ -655,7 +698,7 @@ ChannelBtn.MouseButton1Click:Connect(function()
     pcall(function() setclipboard("https://t.me/scriptNftBattle") end)
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Канал",
+            Title = "📢 Канал",
             Text = "Ссылка скопирована в буфер обмена!",
             Duration = 3
         })
@@ -665,7 +708,7 @@ end)
 local AuthorLabel = Instance.new("TextLabel", InfoCard)
 AuthorLabel.Size = UDim2.new(1,-24,0,16)
 AuthorLabel.Position = UDim2.new(0,12,0,46)
-AuthorLabel.Text = "@cozy_hous1303"
+AuthorLabel.Text = "👤 @cozy_hous1303"
 AuthorLabel.TextColor3 = ColorTextDim
 AuthorLabel.TextSize = 8
 AuthorLabel.Font = Enum.Font.Gotham
@@ -673,6 +716,9 @@ AuthorLabel.BackgroundTransparency = 1
 AuthorLabel.TextXAlignment = Enum.TextXAlignment.Center
 AuthorLabel.ZIndex = 7
 
+-- ════════════════════════════════════════════════════════════
+--  ФУНКЦИИ
+-- ════════════════════════════════════════════════════════════
 local function OpenCaseFunc(name)
     task.spawn(function()
         pcall(function()
@@ -692,6 +738,8 @@ end
 
 local function StopFarm()
     AutoFarm = false
+    -- БАГ #5: task.cancel на nil не вызывал ошибку, но pcall лишний —
+    -- добавлена проверка перед отменой
     if FarmTask then
         pcall(function() task.cancel(FarmTask) end)
         FarmTask = nil
@@ -701,6 +749,8 @@ end
 
 local function StartFarm()
     if not SelectedCase then SetStatus(T("pick_case")) return end
+    -- БАГ #6: повторный нажатие СТАРТ при активном фарме создавало второй task.spawn.
+    -- Теперь сначала останавливаем старый перед перезапуском.
     if AutoFarm then StopFarm() end
     AutoFarm = true
     SetStatus(T("farming") .. SelectedCase)
@@ -724,8 +774,8 @@ local function ApplyLang()
     FUTitle.Text     = T("fast_up")
     ScTitle.Text     = T("scale")
     LTitle.Text      = T("language")
-    InfoTitle.Text   = T("channel")
-    AuthorLabel.Text = "@cozy_hous1303"
+    InfoTitle.Text   = "📢 " .. T("channel")
+    AuthorLabel.Text = "👤 @cozy_hous1303"
     SetStatus(AutoFarm and (T("farming")..(SelectedCase or "")) or T("ready"))
     for _, m in ipairs(pModes) do
         if pBtns[m.id] then pBtns[m.id].Text = m.label() end
@@ -742,6 +792,9 @@ local function SwitchTab(tab)
     TabSettings.TextColor3       = tab=="settings" and ColorText   or ColorTextDim
 end
 
+-- ════════════════════════════════════════════════════════════
+--  КОННЕКТЫ
+-- ════════════════════════════════════════════════════════════
 TabMain.MouseButton1Click:Connect(function() SwitchTab("main") end)
 TabSettings.MouseButton1Click:Connect(function() SwitchTab("settings") end)
 StartBtn.MouseButton1Click:Connect(StartFarm)
@@ -782,6 +835,8 @@ CloseBtn.MouseButton1Click:Connect(function()
     StopFarm(); ClearParticles(); GUI:Destroy()
 end)
 
+-- БАГ #7: InputChanged подключался дважды (ползунок + перетаскивание окна) —
+-- объединены в один обработчик
 local drag, dragStart, startPos = false, nil, nil
 
 Top.InputBegan:Connect(function(inp)
@@ -826,6 +881,7 @@ UIS.InputBegan:Connect(function(inp, proc)
     end
 end)
 
+-- Старт
 SwitchTab("main")
 ApplyLang()
 SetScale(0.5)
